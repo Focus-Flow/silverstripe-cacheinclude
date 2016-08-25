@@ -464,6 +464,10 @@ class CacheInclude
      */
     protected function keyInIndex($key, $index)
     {
-        return in_array($key, array_keys($this->cache->fetch($index)));
+        $keys = array_keys($this->cache->fetch($index));
+        if (!is_array($keys)) {
+            $keys = [];
+        }
+        return in_array($key, $keys);
     }
 }
