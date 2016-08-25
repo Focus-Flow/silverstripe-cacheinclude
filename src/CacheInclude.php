@@ -210,8 +210,13 @@ class CacheInclude
             $result = $this->forceExpire($processor, $name, $key);
             $type = "EXPIRE";
         } elseif ($this->cache->contains($key)) {
-            $result = $this->cache->fetch($key);
-            $type = "HIT";
+            if ($this->keyInIndex($key, $name)) {
+                $result = $this->cache->fetch($key);
+                $type = "HIT";
+            } else {
+                $result = $this->cacheSave($processor, $keyCreator, $config, $name, $key);
+                $type = "INDEX_CORRUPTION";
+            }
         } else {
             $result = $this->cacheSave($processor, $keyCreator, $config, $name, $key);
             $type = "MISS";
@@ -282,7 +287,12 @@ class CacheInclude
         $result = $this->cache->fetch($key);
 
         if ($result) {
-            $this->log('HIT', $name, $key);
+            if ($this->keyInIndex($key, $name)) {
+                $this->log('HIT', $name, $key);
+            } else {
+                $result = false;
+                $this->log('INDEX_CORRUPTION', $name, $key);
+            }
         } else {
             $this->log('MISS', $name, $key);
         }
@@ -439,5 +449,21 @@ class CacheInclude
         if ($this->logger) {
             $this->logger->info(sprintf("[%s] cacheinclude '%s' with key '%s'", $type, $name, $key));
         }
+    }
+
+    /**
+     * Check if `$key` is in `$index`
+     *
+     * This is to ensure that multiple concurrent writes to index don't cause
+     * using stale keys in cache.
+     *
+     * @param string $key
+     * @param string $index
+     *
+     * @return bool
+     */
+    protected function keyInIndex($key, $index)
+    {
+        return in_array($key, array_keys($this->cache->fetch($index)));
     }
 }
